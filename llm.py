@@ -1,55 +1,176 @@
+"""
+llm.py — VetConnect AI local model interface
+All inference via Ollama. No internet required after model pull.
+"""
+
 import ollama
 
+# ── Model ─────────────────────────────────────────────────────────────────────
+# llama3.2 (3B) — best local quality/speed balance.
+# Swap to "phi3" or "llama3.2:1b" for lower-RAM devices.
 MODEL = "llama3.2"
 
-SYSTEM_PROMPT = """You are VetConnect AI, a veterinary assistant. Help pet owners understand symptoms and next steps.
+# ── System prompts ─────────────────────────────────────────────────────────────
 
-Structure your response as:
+_VET_SYSTEM = """You are VetConnect AI, a knowledgeable, calm, and compassionate veterinary assistant.
+You help pet owners assess their animal's condition and decide on the right next steps.
+
+Always structure your response exactly like this:
 
 **Severity:** [Low / Medium / High / Critical]
 
-**Likely Causes:**
-- (2-4 bullet points)
+**What this likely is:**
+(2–3 sentences explaining the probable cause in plain language)
 
-**Immediate Actions:**
-- (2-4 steps)
+**What to do right now:**
+- (Step 1)
+- (Step 2)
+- (Step 3)
 
-**When to Go to a Vet:**
-- (clear triggers)
+**Home care tips** *(for Low/Medium only)*:
+- (what to watch for, feeding advice, rest)
 
-Be concise. Use plain language. Never recommend specific human medications."""
+**Go to a vet immediately if:**
+- (2–3 specific warning signs)
 
-TRIAGE_PROMPT = """You are VetConnect AI performing symptom triage.
+**A word of reassurance:**
+(One warm, empathetic sentence for the owner.)
 
-Respond in this exact format:
+Rules:
+- Never recommend specific dosages of human medications
+- Always flag Critical cases clearly and early
+- Use plain language — assume the owner is stressed and non-medical"""
 
-**Triage Level:** [Green (Monitor) / Amber (Vet Soon) / Red (Emergency Now)]
+_TRIAGE_SYSTEM = """You are VetConnect AI performing a rapid veterinary triage.
 
-**Top 3 Possible Conditions:**
-1. [Condition] - [one-line explanation]
-2. [Condition] - [one-line explanation]
-3. [Condition] - [one-line explanation]
+Respond in exactly this format:
 
-**What to Watch:** (2-3 signs that would raise the triage level)
+**Triage Level:** [🟢 Green — Monitor at Home / 🟡 Amber — Vet Within 24h / 🔴 Red — Emergency Now]
 
-**Next Step:** (single clear directive)"""
+**Most likely condition:** (name + one-line explanation)
+
+**Other possibilities:**
+1. (condition — reason)
+2. (condition — reason)
+
+**Watch for these warning signs:**
+- (sign that would escalate triage level)
+- (sign that would escalate triage level)
+
+**Your next step:** (single clear directive — one sentence)
+
+Be direct. Owners are stressed. No hedging."""
+
+_MEDICATION_SYSTEM = """You are a veterinary pharmacology assistant.
+Be accurate, specific, and flag anything dangerous with ⚠️.
+
+Structure your response as:
+
+**Safety verdict:** [✅ Generally Safe / ⚠️ Use with Caution / 🚫 Dangerous / ☠️ Toxic — Do Not Use]
+
+**Safe dose range:** (if applicable, or "Not recommended")
+
+**Common side effects:**
+- (list)
+
+**Critical warnings:**
+- (anything that warrants immediate vet contact)
+
+**Better alternatives:** (if the medication is unsafe)
+
+Keep it brief. Owners need fast, clear answers."""
+
+_HEALTH_SUMMARY_SYSTEM = """You are a veterinary health advisor generating a personalised pet health summary.
+
+Given the pet's profile, generate a structured health report card with:
+
+**Health Overview:**
+(2 sentences based on species, age, weight, and any noted conditions)
+
+**Age-related health priorities:**
+- (screening or check recommended for this life stage)
+- (vaccination or parasite prevention note)
+- (dental, weight, or diet note)
+
+**Breed/species watch list:**
+- (1–2 conditions common in this species/breed to watch for)
+
+**Recommended vet visit frequency:** (e.g. Every 6 months / Annual / Quarterly)
+
+**One tip for this month:**
+(Practical, specific, and actionable.)
+
+Keep it warm, positive, and useful — not alarmist."""
+
+_FIRST_AID_SYSTEM = """You are a veterinary first aid advisor.
+Given a specific situation, provide a concise, numbered first aid procedure.
+
+Format:
+**Situation:** (restate briefly)
+
+**Do this now:**
+1. (step)
+2. (step)
+3. (step)
+4. (step)
+
+**Important:** (one critical caution)
+
+**When to stop home care and go to a vet:** (one sentence)
+
+Be specific, numbered, and use plain language."""
 
 
-def _call(system: str, messages: list) -> str:
-    all_messages = [{"role": "system", "content": system}] + messages
-    response = ollama.chat(model=MODEL, messages=all_messages)
-    return response["message"]["content"]
+# ── Public API ─────────────────────────────────────────────────────────────────
 
-
-def ask_vet_ai(user_input: str, history: list = None) -> str:
-    messages = list(history or [])
+def ask_vet_ai(user_input: str, history: list[dict] | None = None) -> str:
+    """Conversational AI vet assistant with optional history."""
+    messages = [{"role": "system", "content": _VET_SYSTEM}]
+    if history:
+        messages.extend(history[-10:])
     messages.append({"role": "user", "content": user_input})
-    return _call(SYSTEM_PROMPT, messages)
+    r = ollama.chat(model=MODEL, messages=messages)
+    return r["message"]["content"]
 
 
 def triage_symptoms(species: str, age: str, weight: str, symptoms: str, duration: str) -> str:
+    """Structured Green/Amber/Red triage assessment."""
     prompt = (
         f"Species: {species}\nAge: {age}\nWeight: {weight} kg\n"
-        f"Symptoms: {symptoms}\nDuration: {duration}\n\nPlease triage."
+        f"Symptoms: {symptoms}\nDuration: {duration}\n\nPerform triage."
     )
-    return _call(TRIAGE_PROMPT, [{"role": "user", "content": prompt}])
+    messages = [{"role": "system", "content": _TRIAGE_SYSTEM}, {"role": "user", "content": prompt}]
+    r = ollama.chat(model=MODEL, messages=messages)
+    return r["message"]["content"]
+
+
+def ask_medication_info(medication: str, species: str) -> str:
+    """Safety assessment for a medication and species."""
+    prompt = f"Is '{medication}' safe for a {species}? Full assessment please."
+    messages = [{"role": "system", "content": _MEDICATION_SYSTEM}, {"role": "user", "content": prompt}]
+    r = ollama.chat(model=MODEL, messages=messages)
+    return r["message"]["content"]
+
+
+def generate_health_summary(pet: dict) -> str:
+    """Generate a personalised health report card for a pet profile."""
+    prompt = (
+        f"Name: {pet.get('name')}\n"
+        f"Species: {pet.get('species')}\n"
+        f"Breed: {pet.get('breed', 'Unknown')}\n"
+        f"Age: {pet.get('age')}\n"
+        f"Weight: {pet.get('weight')} kg\n"
+        f"Known conditions/notes: {pet.get('notes', 'None')}\n\n"
+        "Generate a personalised health report card."
+    )
+    messages = [{"role": "system", "content": _HEALTH_SUMMARY_SYSTEM}, {"role": "user", "content": prompt}]
+    r = ollama.chat(model=MODEL, messages=messages)
+    return r["message"]["content"]
+
+
+def ask_first_aid(situation: str, species: str) -> str:
+    """First aid procedure for a specific situation."""
+    prompt = f"Species: {species}\nSituation: {situation}\nProvide first aid steps."
+    messages = [{"role": "system", "content": _FIRST_AID_SYSTEM}, {"role": "user", "content": prompt}]
+    r = ollama.chat(model=MODEL, messages=messages)
+    return r["message"]["content"]
