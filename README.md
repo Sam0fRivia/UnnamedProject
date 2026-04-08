@@ -65,7 +65,9 @@ Shows clinic name, area, phone, hours, and distance.
 Not a substitute for professional veterinary care. VetConnect AI provides informational guidance only and should not replace consultation with a licensed veterinarian. Always seek professional medical advice for serious symptoms or emergencies.
 
 ---
-[![Watch the Video](https://img.youtube.com/vi/V7Jc6ZZAY2c/maxresdefault.jpg)](https://youtu.be/V7Jc6ZZAY2c)
+## Demo Video
+
+[![VetConnect AI Demo](https://img.youtube.com/vi/V7Jc6ZZAY2c/maxresdefault.jpg)](https://youtu.be/V7Jc6ZZAY2c)
 ---
 
 **VetConnect AI** — Hackathon Project
