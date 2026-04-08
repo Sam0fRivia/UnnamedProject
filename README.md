@@ -67,7 +67,8 @@ Not a substitute for professional veterinary care. VetConnect AI provides inform
 ---
 ## Demo Video
 
-[![VetConnect AI Demo](https://img.youtube.com/vi/V7Jc6ZZAY2c/maxresdefault.jpg)](https://youtu.be/V7Jc6ZZAY2c)
----
+<a href="https://www.youtube.com/watch?v=V7Jc6ZZAY2c">
+  Watch VetConnect AI Demo
+</a>
 
-**VetConnect AI** — Hackathon Project
+---
